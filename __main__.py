@@ -2,7 +2,7 @@ import argparse
 import microarray_analysis
 
 
-__VERSION__ = '1.0.0-alpha'
+__VERSION__ = '1.0.0'
 
 
 PROG = 'python microarray_analysis'
