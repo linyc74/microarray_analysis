@@ -15,7 +15,7 @@ class TestMicroarrayAnalysis(TestCase):
             normalized_intensity_table=f'{self.indir}/normalized_intensity.csv',
             sample_table=f'{self.indir}/samples.csv',
             probe_table=f'{self.indir}/probes.csv',
-            gene_sets_gmt=None,
+            gene_sets_gmt=f'{self.indir}/h.all.v2023.1.Hs.symbols.gmt',
             gene_name_column='Gene Name',
             gene_description_column='Description',
             heatmap_intensity_fraction=0.5,
