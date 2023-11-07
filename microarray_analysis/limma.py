@@ -96,7 +96,7 @@ colnames(design) <- c({conditions})
 fit <- lmFit(data, design)
 
 contrast.matrix <- makeContrasts(
-  TreatmentvsControl = {self.experimental_group_name} - {self.control_group_name},
+  {self.experimental_group_name} - {self.control_group_name},
   levels = design
 )
 
