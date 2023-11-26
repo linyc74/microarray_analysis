@@ -76,6 +76,9 @@ class MicroarrayAnalysis(Processor):
     def heatmap(self):
         Heatmap(self.settings).main(
             normalized_intensity_df=self.normalized_intensity_df,
+            probe_df=self.probe_df,
+            gene_name_column=self.gene_name_column,
+            gene_description_column=self.gene_description_column,
             heatmap_intensity_fraction=self.heatmap_intensity_fraction)
 
     def pca(self):

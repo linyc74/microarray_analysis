@@ -1,7 +1,7 @@
 import pandas as pd
 from typing import Optional, List
 from .template import Processor
-from .tools import get_temp_path
+from .tools import get_temp_path, left_join
 
 
 class Limma(Processor):
@@ -150,18 +150,6 @@ write.csv(results, file="{self.differential_expression_csv}")'''
     def rewrite_output_csv(self):
         self.differential_expression_df.to_csv(
             self.differential_expression_csv, index=True)
-
-
-def left_join(left: pd.DataFrame, right: pd.DataFrame) -> pd.DataFrame:
-    n = len(left)
-    merged = left.merge(
-        right=right,
-        right_index=True,
-        left_index=True,
-        how='left'
-    )
-    assert len(merged) == n
-    return merged
 
 
 def replace_illegal_characters(name: str) -> str:

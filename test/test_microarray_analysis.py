@@ -18,7 +18,7 @@ class TestMicroarrayAnalysis(TestCase):
             gene_sets_gmt=f'{self.indir}/h.all.v2023.1.Hs.symbols.gmt',
             gene_name_column='Gene Name',
             gene_description_column='Description',
-            heatmap_intensity_fraction=0.5,
+            heatmap_intensity_fraction=0.8,
             sample_group_column='Group',
             control_group_name='NaB',
             experimental_group_name='DEHP+NaB',

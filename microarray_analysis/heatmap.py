@@ -3,60 +3,74 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
-from typing import Tuple
+from typing import Tuple, Optional
+from .tools import left_join
 from .template import Processor
 
 
 class Heatmap(Processor):
 
+    DSTDIR_NAME = 'heatmap'
+    FNAME = 'heatmap'
+
     normalized_intensity_df: pd.DataFrame
+    probe_df: pd.DataFrame
+    gene_name_column: str
+    gene_description_column: Optional[str]
     heatmap_intensity_fraction: float
+
+    dstdir: str
 
     def main(
             self,
             normalized_intensity_df: pd.DataFrame,
+            probe_df: pd.DataFrame,
+            gene_name_column: str,
+            gene_description_column: Optional[str],
             heatmap_intensity_fraction: float):
 
-        self.normalized_intensity_df = normalized_intensity_df
+        # df.copy() is critical because it isolates states from the main workflow
+        self.normalized_intensity_df = normalized_intensity_df.copy()
+        self.probe_df = probe_df
+        self.gene_name_column = gene_name_column
+        self.gene_description_column = gene_description_column
         self.heatmap_intensity_fraction = heatmap_intensity_fraction
 
-        OneHeatmap(self.settings).main(
-            feature_by_sample_df=self.normalized_intensity_df,
-            heatmap_intensity_fraction=self.heatmap_intensity_fraction,
-            fname='heatmap'
-        )
-
-
-class OneHeatmap(Processor):
-
-    df: pd.DataFrame
-    heatmap_intensity_fraction: float
-    fname: str
-
-    def main(
-            self,
-            feature_by_sample_df: pd.DataFrame,
-            heatmap_intensity_fraction: float,
-            fname: str):
-
-        self.df = feature_by_sample_df.copy()
-        self.heatmap_intensity_fraction = heatmap_intensity_fraction
-        self.fname = fname
-
+        self.make_dstdir()
         self.filter_by_cumulative_intensity()
-        self.df = np.log10(self.df)
+        self.log10()
         self.clustermap()
+        self.add_gene_name_and_description()
+        self.save_csv()
+
+    def make_dstdir(self):
+        self.dstdir = f'{self.outdir}/{self.DSTDIR_NAME}'
+        os.makedirs(self.dstdir, exist_ok=True)
 
     def filter_by_cumulative_intensity(self):
-        self.logger.info(f'Filter by cumulative intensity for "{self.fname}"')
-        self.df = FilterByCumulativeReads(self.settings).main(
-            df=self.df,
+        self.logger.info(f'Filter by cumulative intensity for "{self.FNAME}"')
+        self.normalized_intensity_df = FilterByCumulativeReads(self.settings).main(
+            df=self.normalized_intensity_df,
             heatmap_intensity_fraction=self.heatmap_intensity_fraction)
 
+    def log10(self):
+        self.normalized_intensity_df = np.log10(self.normalized_intensity_df)
+
     def clustermap(self):
-        Clustermap(self.settings).main(
-            data=self.df,
-            fname=self.fname)
+        self.normalized_intensity_df = Clustermap(self.settings).main(
+            data=self.normalized_intensity_df,
+            dstdir=self.dstdir,
+            fname=self.FNAME)
+
+    def add_gene_name_and_description(self):
+        self.normalized_intensity_df = AddGeneNameAndDescription(self.settings).main(
+            df=self.normalized_intensity_df,
+            probe_df=self.probe_df,
+            gene_name_column=self.gene_name_column,
+            gene_description_column=self.gene_description_column)
+
+    def save_csv(self):
+        self.normalized_intensity_df.to_csv(f'{self.dstdir}/{self.FNAME}.csv', index=True)
 
 
 class FilterByCumulativeReads(Processor):
@@ -141,9 +155,9 @@ class Clustermap(Processor):
     COLORBAR_WIDTH = 0.01
     COLORBAR_HORIZONTAL_POSITION = 1.
     DPI = 600
-    DSTDIR_NAME = 'heatmap'
 
     data: pd.DataFrame
+    dstdir: str
     fname: str
 
     x_label_padding: float
@@ -151,16 +165,22 @@ class Clustermap(Processor):
     figsize: Tuple[float, float]
     grid: sns.matrix.ClusterGrid
 
-    def main(self, data: pd.DataFrame, fname: str):
+    def main(
+            self,
+            data: pd.DataFrame,
+            dstdir: str,
+            fname: str) -> pd.DataFrame:
+
         self.data = data
+        self.dstdir = dstdir
         self.fname = fname
 
         self.set_figsize()
         self.clustermap()
         self.config_clustermap()
-        self.make_dstdir()
         self.save_fig()
-        self.save_csv()
+
+        return self.data
 
     def set_figsize(self):
         self.__set_x_y_label_padding()
@@ -227,16 +247,13 @@ class Clustermap(Processor):
             p.height  # height
         ])
 
-    def make_dstdir(self):
-        os.makedirs(f'{self.outdir}/{self.DSTDIR_NAME}', exist_ok=True)
-
     def save_fig(self):
         # must use grid.savefig(), but not plt.savefig()
         # plt.savefig() crops out the colorbar
 
         dpi = self.__downsize_dpi_if_too_large()
         for ext in ['pdf', 'png']:
-            self.grid.savefig(f'{self.outdir}/{self.DSTDIR_NAME}/{self.fname}.{ext}', dpi=dpi)
+            self.grid.savefig(f'{self.dstdir}/{self.fname}.{ext}', dpi=dpi)
         plt.close()
 
     def __downsize_dpi_if_too_large(self) -> int:
@@ -246,5 +263,45 @@ class Clustermap(Processor):
             dpi = int(dpi/2)  # downsize
         return dpi
 
-    def save_csv(self):
-        self.data.to_csv(f'{self.outdir}/{self.DSTDIR_NAME}/{self.fname}.csv', index=True)
+
+class AddGeneNameAndDescription(Processor):
+
+    df: pd.DataFrame
+    probe_df: pd.DataFrame
+    gene_name_column: str
+    gene_description_column: Optional[str]
+
+    def main(
+            self,
+            df: pd.DataFrame,
+            probe_df: pd.DataFrame,
+            gene_name_column: str,
+            gene_description_column: Optional[str]) -> pd.DataFrame:
+
+        self.df = df
+        self.probe_df = probe_df
+        self.gene_name_column = gene_name_column
+        self.gene_description_column = gene_description_column
+
+        self.merge_new_columns()
+        self.reorder_columns()
+
+        return self.df
+
+    def merge_new_columns(self):
+        cols = [self.gene_name_column]
+        if self.gene_description_column is not None:
+            cols.append(self.gene_description_column)
+
+        self.df = left_join(
+            left=self.df,
+            right=self.probe_df[cols]
+        )
+
+    def reorder_columns(self):
+        columns = self.df.columns.tolist()
+        if self.gene_description_column is not None:
+            reordered = columns[-2:] + columns[:-2]
+        else:
+            reordered = columns[-1:] + columns[:-1]
+        self.df = self.df[reordered]

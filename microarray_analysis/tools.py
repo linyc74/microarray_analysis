@@ -1,4 +1,5 @@
 import os
+import pandas as pd
 from os.path import join
 from typing import List
 
@@ -33,3 +34,15 @@ def get_files(
     if ret:
         ret.sort()  # make the order consistent across OS platforms
     return ret
+
+
+def left_join(left: pd.DataFrame, right: pd.DataFrame) -> pd.DataFrame:
+    n = len(left)
+    merged = left.merge(
+        right=right,
+        right_index=True,
+        left_index=True,
+        how='left'
+    )
+    assert len(merged) == n
+    return merged
